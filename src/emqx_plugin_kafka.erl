@@ -320,6 +320,11 @@ kafka_init(_Env) ->
   ?LOG_INFO("Init emqx plugin kafka successfully.....~n"),
   ok.
 
+do_connect_topic(Topic) ->
+  ?LOG_INFO("[KAFKA PLUGIN]Start kafka producer ~p~n", [Topic]),
+  ok = brod:start_producer(emqx_repost_worker, Topic, []),
+  ok.
+
 format_payload(Message) ->
   Username = emqx_message:get_header(username, Message),
   Topic = Message#message.topic,
