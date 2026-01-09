@@ -59,7 +59,7 @@
 %% Called when the plugin application start
 load(Env) ->
   % ekaf_init([Env]),
-  brod_init([Env]),
+  kafka_init([Env]),
   emqx:hook('client.connect', {?MODULE, on_client_connect, [Env]}),
   emqx:hook('client.connack', {?MODULE, on_client_connack, [Env]}),
   emqx:hook('client.connected', {?MODULE, on_client_connected, [Env]}),
