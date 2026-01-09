@@ -58,7 +58,8 @@
 
 %% Called when the plugin application start
 load(Env) ->
-  ekaf_init([Env]),
+  % ekaf_init([Env]),
+  brod_init([Env]),
   emqx:hook('client.connect', {?MODULE, on_client_connect, [Env]}),
   emqx:hook('client.connack', {?MODULE, on_client_connack, [Env]}),
   emqx:hook('client.connected', {?MODULE, on_client_connected, [Env]}),
@@ -107,7 +108,8 @@ on_client_connected(ClientInfo = #{clientid := ClientId}, ConnInfo, _Env) ->
     {timestamp, Now},
     {online, Online}
   ],
-  produce_kafka_payload(Payload),
+  % produce_kafka_payload(Payload),
+  produce_kafka_payload_v2(Payload),
   ok.
 
 on_client_disconnected(ClientInfo = #{clientid := ClientId}, ReasonCode, ConnInfo, _Env) ->
@@ -124,7 +126,8 @@ on_client_disconnected(ClientInfo = #{clientid := ClientId}, ReasonCode, ConnInf
     {timestamp, Now},
     {online, Online}
   ],
-  produce_kafka_payload(Payload),
+  % produce_kafka_payload(Payload),
+  produce_kafka_payload_v2(Payload),
   ok.
 
 on_client_authenticate(_ClientInfo = #{clientid := ClientId}, Result, _Env) ->
@@ -150,7 +153,7 @@ on_client_subscribe(#{clientid := ClientId}, _Properties, TopicFilters, _Env) ->
     {qos, maps:get(qos, Qos)},
     {timestamp, Now}
   ],
-  produce_kafka_payload(Payload),
+  % produce_kafka_payload(Payload),
   ok.
 %%---------------------client subscribe stop----------------------%%
 on_client_unsubscribe(#{clientid := ClientId}, _Properties, TopicFilters, _Env) ->
@@ -164,7 +167,7 @@ on_client_unsubscribe(#{clientid := ClientId}, _Properties, TopicFilters, _Env) 
     {topic, Topic},
     {timestamp, Now}
   ],
-  produce_kafka_payload(Payload),
+  % produce_kafka_payload(Payload),
   ok.
 
 on_message_dropped(#message{topic = <<"$SYS/", _/binary>>}, _By, _Reason, _Env) ->
@@ -180,7 +183,7 @@ on_message_publish(Message = #message{topic = <<"$SYS/", _/binary>>}, _Env) ->
   ok;
 on_message_publish(Message, _Env) ->
   {ok, Payload} = format_payload(Message),
-  produce_kafka_payload(Payload),
+  % produce_kafka_payload(Payload),
   ok.
 %%---------------------message publish stop----------------------%%
 
@@ -202,7 +205,7 @@ on_message_delivered(_ClientInfo = #{clientid := ClientId}, Message, _Env) ->
     {cluster_node, node()},
     {ts, Timestamp}
   ],
-  produce_kafka_payload(Content),
+  % produce_kafka_payload(Content),
   ok.
 
 on_message_acked(_ClientInfo = #{clientid := ClientId}, Message, _Env) ->
@@ -223,7 +226,7 @@ on_message_acked(_ClientInfo = #{clientid := ClientId}, Message, _Env) ->
     {cluster_node, node()},
     {ts, Timestamp}
   ],
-  produce_kafka_payload(Content),
+  % produce_kafka_payload(Content),
   ok.
 
 %%--------------------------------------------------------------------
@@ -286,6 +289,27 @@ ekaf_get_topic() ->
   {ok, Topic} = application:get_env(ekaf, ekaf_bootstrap_topics),
   Topic.
 
+brod_init(_Env) ->
+  io:format("Init emqx plugin kafka with brod....."),
+  {ok, BrokerValues} = application:get_env(emqx_plugin_kafka, broker),
+  KafkaHost = proplists:get_value(host, BrokerValues),
+  KafkaPort = proplists:get_value(port, BrokerValues),
+  KafkaTopic = proplists:get_value(payloadtopic, BrokerValues),
+  KafkaPartitionStrategy = proplists:get_value(partitionstrategy, BrokerValues),
+
+  % 브로커 주소 설정
+  Brokers = [{KafkaHost, list_to_integer(KafkaPort)}],
+
+  % brod 클라이언트 시작
+  ok = brod:start_client(Brokers, kafka_client, []),
+
+  % 기본 프로듀서 설정
+  ok = brod:start_producer(kafka_client, KafkaTopic, [
+    {partition_strategy, list_to_atom(KafkaPartitionStrategy)}
+  ]),
+
+  ?LOG_INFO("[KAFKA PLUGIN]Brod initialized with topic ~s~n", [KafkaTopic]),
+  ok.
 
 format_payload(Message) ->
   Username = emqx_message:get_header(username, Message),
@@ -341,6 +365,19 @@ produce_kafka_payload(Message) ->
   % ?LOG_INFO("[KAFKA PLUGIN]Message = ~s~n",[MessageBody]),
   Payload = iolist_to_binary(MessageBody),
   ekaf:produce_async_batched(Topic, Payload).
+
+produce_kafka_payload_v2(Message) ->
+  io:format("Producing Kafka payload. Input Message ~p~n", [Message]),
+  Payload = jsx:encode(Message), % JSON으로 변환
+  Value = Payload,
+  case brod:produce_sync(kafka_client, "emqx-topic", Value) of
+    ok ->
+      io:format("Kafka message produced successfully. Value: ~p~n", [Value]),
+      ok;
+    {error, Reason} ->
+      io:format("Failed to produce Kafka message. Reason: ~p~n", [Reason]),
+      {error, Reason}
+  end.
 
 ntoa({0, 0, 0, 0, 0, 16#ffff, AB, CD}) ->
   inet_parse:ntoa({AB bsr 8, AB rem 256, CD bsr 8, CD rem 256});
