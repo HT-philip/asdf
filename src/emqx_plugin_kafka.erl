@@ -375,17 +375,17 @@ produce_kafka_payload(Message) ->
   Payload = iolist_to_binary(MessageBody),
   ekaf:produce_async_batched(Topic, Payload).
 
-produce_kafka_payload_v2(Key, Topic, From, Message) ->
-  TopicKafka = get_duclo_kafka_topic(Topic),
-  case TopicKafka of
-      undefined -> ?LOG_INFO("[KAFKA PLUGIN]Not handling topic. = ~p~n",[Topic]);
-      _ -> 
-        ?LOG_INFO("[KAFKA PLUGIN]Handling Topic = ~s~n", [TopicKafka]),
-        produce_kafka_payload(Key, TopicKafka, Message)
-  end,
-  ok.
+% produce_kafka_payload_v2(Key, Topic, From, Message) ->
+%   TopicKafka = get_duclo_kafka_topic(Topic),
+%   case TopicKafka of
+%       undefined -> ?LOG_INFO("[KAFKA PLUGIN]Not handling topic. = ~p~n",[Topic]);
+%       _ -> 
+%         ?LOG_INFO("[KAFKA PLUGIN]Handling Topic = ~s~n", [TopicKafka]),
+%         produce_kafka_payload(Key, TopicKafka, Message)
+%   end,
+%   ok.
 
-produce_kafka_payload(Key, Topic, Message) ->
+produce_kafka_payload_v2(Key, Topic, Message) ->
   %Topic = get_kafka_topic(),
   %?LOG_INFO("[KAFKA PLUGIN]TopicKafka topic = ~s~n", [Topic]),
   {ok, MessageBody} = emqx_json:safe_encode(Message),
