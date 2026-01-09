@@ -109,7 +109,11 @@ on_client_connected(ClientInfo = #{clientid := ClientId}, ConnInfo, _Env) ->
     {online, Online}
   ],
   % produce_kafka_payload(Payload),
-  produce_kafka_payload_v2(Payload),
+
+  {ok, KafkaTopics} =  application:get_env(emqx_plugin_kafka, connect_kafka_topics),
+  KafkaConnectedTopic = proplists:get_value("connected", KafkaTopics),
+  %?LOG_INFO("[KAFKA PLUGIN]KafkaConnectedTopic = ~s", [KafkaConnectedTopic]),
+  produce_kafka_payload_v2(ClientId, KafkaConnectedTopic, Payload),
   ok.
 
 on_client_disconnected(ClientInfo = #{clientid := ClientId}, ReasonCode, ConnInfo, _Env) ->
